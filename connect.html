@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <link rel="stylesheet" type="text/css" href="./styles/style.css" />
+  </head>
+  <body>
+    <div class="main-container">
+      <div id="ccp" class="ccp" style="display:none"></div>
+      <div id="custom" class="custom">
+        <select id="status-selector" onchange="onAgentStatusChange()">
+          <option value="available">Available</option>
+          <option value="offline">Offline</option>
+        </select>
+        <div id="contact-connected">
+          <img src="./images/headphones.png" />
+          <div class="callActionButtons">
+            <input
+              class="button-error"
+              type="button"
+              value="Hang-up"
+              onclick="hangUpContact()"
+            />
+          </div>
+        </div>
+        <div id="contact-connecting">
+          <img src="./images/arrow.png" />
+          <div class="callActionButtons">
+            <input
+              class="button-success"
+              type="button"
+              value="Accept"
+              onclick="acceptContact()"
+            />
+
+            <input
+              class="button-error"
+              type="button"
+              value="Decline"
+              onclick="disconnectContact()"
+            />
+          </div>
+        </div>
+        <div id="default">
+          <div id="numpad-container" style="display:none">
+            <div id="output">
+              <span id="contact-number"></span>
+              <input
+                type="image"
+                src="./images/cancel.png"
+                id="imageButton"
+                onclick="hideNumpad()"
+              />
+            </div>
+            <div class="numpad">
+              <div class="row">
+                <div class="digit" id="one" onclick="updateNumber(1)">1</div>
+                <div class="digit" id="two" onclick="updateNumber(2)">2</div>
+                <div class="digit" onclick="updateNumber(3)">3</div>
+              </div>
+              <div class="row">
+                <div class="digit" onclick="updateNumber(4)">4</div>
+                <div class="digit" onclick="updateNumber(5)">5</div>
+                <div class="digit" onclick="updateNumber(6)">6</div>
+              </div>
+              <div class="row">
+                <div class="digit" onclick="updateNumber(7)">7</div>
+                <div class="digit" onclick="updateNumber(8)">8</div>
+                <div class="digit" onclick="updateNumber(9)">9</div>
+              </div>
+              <div class="row">
+                <div class="digit" onclick="updateNumber('*')">*</div>
+                <div class="digit" onclick="updateNumber(0)">0</div>
+                <div class="digit" onclick="updateNumber('#')">#</div>
+              </div>
+            </div>
+
+            <div class="callActionButtons">
+              <input class="button-call" type="button" value="Call" />
+            </div>
+          </div>
+
+          <div class="callActionButtons">
+            <input
+              id="btn-numpad"
+              class="button-secondary"
+              type="button"
+              value="Number pad"
+              onclick="showNumpad()"
+            />
+          </div>
+        </div>
+      </div>
+    </div>
+  </body>
+</html>
+
+<script src="./js/connect-streams-min.js"></script>
+<script src="./js/amazon-connect-chat.js"></script>
+
+<script type="text/javascript">
+  window.myCPP = window.myCPP || {};
+
+  //replace with the CCP URL for your Amazon Connect instance
+  var ccpUrl = "https://karishma.awsapps.com/connect/ccp-v2#";
+
+  connect.core.initCCP(ccp, {
+    ccpUrl: ccpUrl,
+    loginPopup: true,
+    softphone: {
+      allowFramedSoftphone: true
+    }
+  });
+
+  connect.agent(function(contact) {
+    window.myCPP.agent = agent;
+  });
+
+  connect.contact(function(contact) {
+    window.myCPP.contact = contact;
+
+    contact.onConnecting(contact => {
+      document.getElementById("contact-connecting").style.display = "block";
+      document.getElementById("default").style.display = "none";
+      document.getElementById("status").disabled = true;
+    });
+
+    contact.onAccepted(function(contact) {});
+
+    contact.onEnded(function() {});
+
+    contact.onConnected(function() {});
+  });
+
+  function acceptContact() {
+    window.myCPP.contact.accept({
+      success: function() {
+        document.getElementById("contact-connecting").style.display = "none";
+        document.getElementById("contact-connected").style.display = "block";
+        document.getElementById("status").disabled = true;
+        console.log("Accepted contact via Streams");
+      },
+      failure: function() {
+        console.log("Failed to accept contact via Streams");
+      }
+    });
+  }
+
+  function disconnectContact() {}
+
+  function hangUpContact() {
+    if (window.myCPP.contact) {
+      var initialConnection = window.myCPP.contact.getInitialConnection();
+      if (initialConnection) {
+        initialConnection.destroy();
+        document.getElementById("contact-connecting").style.display = "none";
+        document.getElementById("contact-connected").style.display = "none";
+        document.getElementById("default").style.display = "block";
+        document.getElementById("status").disabled = false;
+      }
+    }
+  }
+
+  function onAgentStatusChange() {
+    var status = document.getElementById("status").value;
+    if (status === "available") {
+      goAvailable();
+    } else {
+      goOffline();
+    }
+  }
+
+  function goAvailable() {
+    var routableState = window.myCPP.agent
+      .getAgentStates()
+      .filter(function(state) {
+        return state.type === connect.AgentStateType.ROUTABLE;
+      })[0];
+    window.myCPP.agent.setState(routableState, {
+      success: function() {
+        console.log("Set agent status to Available (routable) via Streams");
+      },
+      failure: function() {
+        console.log(
+          "Failed to set agent status to Available (routable) via Streams"
+        );
+      }
+    });
+  }
+
+  function goOffline() {
+    var offlineState = window.myCPP.agent
+      .getAgentStates()
+      .filter(function(state) {
+        return state.type === connect.AgentStateType.OFFLINE;
+      })[0];
+    window.myCPP.agent.setState(offlineState, {
+      success: function() {
+        console.log("Set agent status to Offline via Streams");
+      },
+      failure: function() {
+        console.log("Failed to set agent status to Offline via Streams");
+      }
+    });
+  }
+
+  function showNumpad() {
+    document.getElementById("numpad-container").style.display = "block";
+    document.getElementById("status-selector").style.display = "none";
+    document.getElementById("btn-numpad").style.display = "none";
+  }
+
+  function hideNumpad() {
+    document.getElementById("numpad-container").style.display = "none";
+    document.getElementById("status-selector").style.display = "block";
+    document.getElementById("btn-numpad").style.display = "block";
+    document.getElementById("contact-number").textContent = "";
+  }
+
+  function updateNumber(number) {
+    var x = document.getElementById("contact-number").textContent;
+    document.getElementById("contact-number").textContent = x.concat(number);
+  }
+</script>
